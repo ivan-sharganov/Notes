@@ -1,45 +1,128 @@
 import UIKit
+import CoreData
 
-final internal class NotesListViewController: UITableViewController {
+class NotesListViewController: UITableViewController {
+
+    enum Constants {
+        static let reuseID = "cell"
+        static let title = "Notes"
+    }
+    private let context: NSManagedObjectContext
     
-    let data = ["1", "2", "3"]
+    private lazy var fetchedResultsController: NSFetchedResultsController<Note> = {
+        let request: NSFetchRequest<Note> = Note.fetchRequest()
+        request.sortDescriptors = [
+            NSSortDescriptor(key: #keyPath(Note.isPinned), ascending: false),
+            NSSortDescriptor(key: #keyPath(Note.updatedAt), ascending: false)
+        ]
+        
+        let frc = NSFetchedResultsController(
+            fetchRequest: request,
+            managedObjectContext: self.context,
+            sectionNameKeyPath: nil,
+            cacheName: nil
+        )
+        frc.delegate = self
+        
+        return frc
+    }()
+    
+    init(context: NSManagedObjectContext) {
+        self.context = context
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        try? self.fetchedResultsController.performFetch()
         self.setupUI()
+        
     }
-    
     private func setupUI() {
+        self.tableView.register(UITableViewCell.self, forCellReuseIdentifier: Constants.reuseID)
+        // datasource уже проставлен
+        
+        self.title = Constants.title
+        
         self.navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .add,
             target: self,
             action: #selector(didTapAdd)
         )
-        
-        self.title = Constants.notesTitle
-        self.tableView.register(UITableViewCell.self, forCellReuseIdentifier: Constants.cellIdentifier)
-        self.tableView.dataSource = self
     }
     
     @objc private func didTapAdd() {
-        
+        let note = Note(context: self.context)
+        note.title = String(Int.random(in: 0...100))
+        note.body = "Text"
+        note.createdAt = Date()
+        note.id = UUID()
+        note.updatedAt = Date()
+        do {
+            try context.save()
+        } catch {
+            print("Error") // если НЕ опциональные поля забудем записать, будет ошибка
+        }
     }
 }
 
+// MARK: - UITableViewDataSource
+
 extension NotesListViewController {
+
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: Constants.cellIdentifier, for: indexPath)
-        cell.textLabel?.text = self.data[indexPath.row]
+        let cell = tableView.dequeueReusableCell(withIdentifier: Constants.reuseID, for: indexPath)
+        cell.textLabel?.text = self.fetchedResultsController.object(at: indexPath).title
         
         return cell
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        self.data.count
+        self.fetchedResultsController.sections?[section].numberOfObjects ?? 0
     }
 }
 
+// MARK: - NSFetchedResultsControllerDelegate
 
-private enum Constants {
-    static let notesTitle = "Notes"
-    static let cellIdentifier = "cell"
+extension NotesListViewController: NSFetchedResultsControllerDelegate {
+    func controllerWillChangeContent(_ controller: NSFetchedResultsController<any NSFetchRequestResult>) {
+        self.tableView.beginUpdates()
+    }
+    func controllerDidChangeContent(_ controller: NSFetchedResultsController<any NSFetchRequestResult>) {
+        self.tableView.endUpdates()
+    }
+    func controller(
+        _ controller: NSFetchedResultsController<any NSFetchRequestResult>,
+        didChange anObject: Any,
+        at indexPath: IndexPath?,
+        for type: NSFetchedResultsChangeType,
+        newIndexPath: IndexPath?
+    ) {
+        switch type {
+        case .insert:
+            if let newIndexPath {
+                self.tableView.insertRows(at: [newIndexPath], with: .automatic)
+            }
+        case .delete:
+            if let newIndexPath {
+                self.tableView.deleteRows(at: [newIndexPath], with: .automatic)
+            }
+        case .move:
+            if let newIndexPath {
+                self.tableView.insertRows(at: [newIndexPath], with: .automatic)
+            }
+            if let indexPath {
+                self.tableView.deleteRows(at: [indexPath], with: .automatic)
+            }
+        case .update:
+            if let indexPath {
+                self.tableView.reloadRows(at: [indexPath], with: .automatic)
+            }
+        @unknown default:
+            self.tableView.reloadData()
+        }
+    }
 }
