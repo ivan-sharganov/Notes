@@ -76,9 +76,19 @@ extension NotesListViewController {
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: Constants.reuseID, for: indexPath)
-        cell.textLabel?.text = self.fetchedResultsController.object(at: indexPath).title
+        let note = self.fetchedResultsController.object(at: indexPath)
         
+        var contentConfiguration = cell.defaultContentConfiguration()
+        contentConfiguration.text = note.title
+        
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        contentConfiguration.secondaryText = formatter.string(from: note.updatedAt)
+        
+        cell.contentConfiguration = contentConfiguration
         return cell
+        
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         self.fetchedResultsController.sections?[section].numberOfObjects ?? 0
@@ -107,8 +117,8 @@ extension NotesListViewController: NSFetchedResultsControllerDelegate {
                 self.tableView.insertRows(at: [newIndexPath], with: .automatic)
             }
         case .delete:
-            if let newIndexPath {
-                self.tableView.deleteRows(at: [newIndexPath], with: .automatic)
+            if let indexPath {
+                self.tableView.deleteRows(at: [indexPath], with: .automatic)
             }
         case .move:
             if let newIndexPath {
