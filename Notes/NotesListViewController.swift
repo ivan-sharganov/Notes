@@ -86,6 +86,23 @@ extension NotesListViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         self.fetchedResultsController.sections?[section].numberOfObjects ?? 0
     }
+    override func tableView(
+        _ tableView: UITableView,
+        commit editingStyle: UITableViewCell.EditingStyle,
+        forRowAt indexPath: IndexPath
+    ) {
+        guard editingStyle == .delete else { return }
+        
+        let note = fetchedResultsController.object(at: indexPath)
+        self.context.delete(note)
+
+        do {
+            try self.context.save()
+        } catch {
+            print("Deleting error")
+        }
+    }
+
 }
 
 // MARK: - UITableViewDelegate

@@ -76,9 +76,15 @@ final class NoteEditorViewController: UIViewController {
     
     @objc private func didTapSave() {
         print("Did save")
+        let title = self.titleTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !title.isEmpty else {
+            self.navigationController?.popViewController(animated: true)
+            return
+        }
+        
         if let exNote = self.note {
             // edit
-            exNote.title = self.titleTextField.text ?? ""
+            exNote.title = title
             exNote.body = self.bodyTextView.text ?? ""
             exNote.updatedAt = Date()
         } else {
@@ -86,7 +92,7 @@ final class NoteEditorViewController: UIViewController {
             note.id = UUID()
             note.isPinned = false
             note.createdAt = Date()
-            note.title = self.titleTextField.text ?? ""
+            note.title = title
             note.body = self.bodyTextView.text ?? ""
             note.updatedAt = Date()
         }
