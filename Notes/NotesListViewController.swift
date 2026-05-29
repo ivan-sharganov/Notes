@@ -56,17 +56,10 @@ class NotesListViewController: UITableViewController {
     }
     
     @objc private func didTapAdd() {
-        let note = Note(context: self.context)
-        note.title = String(Int.random(in: 0...100))
-        note.body = "Text"
-        note.createdAt = Date()
-        note.id = UUID()
-        note.updatedAt = Date()
-        do {
-            try context.save()
-        } catch {
-            print("Error") // если НЕ опциональные поля забудем записать, будет ошибка
-        }
+        self.navigationController?.pushViewController(
+            NoteEditorViewController(context: self.context, note: nil),
+            animated: true
+        )
     }
 }
 

@@ -4,7 +4,7 @@ import CoreData
 final class NoteEditorViewController: UIViewController {
     
     private let context: NSManagedObjectContext
-    private let note: Note?
+    private let note: Note?  // (nil = create,  !nil = edit)
     
     private lazy var titleTextField: UITextField = {
         let tf = UITextField()
@@ -25,7 +25,7 @@ final class NoteEditorViewController: UIViewController {
         return tv
     }()
     
-    init(context: NSManagedObjectContext, note: Note) {
+    init(context: NSManagedObjectContext, note: Note?) {
         self.context = context
         self.note = note
         super.init(nibName: nil, bundle: nil)
@@ -42,11 +42,16 @@ final class NoteEditorViewController: UIViewController {
     }
     
     private func updateData() {
-        guard let note else { return }
-        self.titleTextField.text = note.title
-        self.bodyTextView.text = note.body
+        if let note {
+            self.title = "Edit"
+            self.titleTextField.text = note.title
+            self.bodyTextView.text = note.body
+        } else {
+            self.title = "New note"
+        }
     }
     private func setupUI() {
+        self.view.backgroundColor = .systemBackground
         [self.bodyTextView, self.titleTextField].forEach {
             self.view.addSubview($0)
         }
@@ -71,17 +76,23 @@ final class NoteEditorViewController: UIViewController {
     
     @objc private func didTapSave() {
         print("Did save")
-        guard let exNote = self.note else { return }
-        let note = Note(context: self.context)
-        note.id = exNote.id
-        note.isPinned = exNote.isPinned
-        note.createdAt = exNote.createdAt
-        note.updatedAt = Date()
-        note.title = self.titleTextField.text ?? ""
-        note.body = self.bodyTextView.text ?? ""
-        
+        if let exNote = self.note {
+            // edit
+            exNote.title = self.titleTextField.text ?? ""
+            exNote.body = self.bodyTextView.text ?? ""
+            exNote.updatedAt = Date()
+        } else {
+            let note = Note(context: self.context)
+            note.id = UUID()
+            note.isPinned = false
+            note.createdAt = Date()
+            note.title = self.titleTextField.text ?? ""
+            note.body = self.bodyTextView.text ?? ""
+            note.updatedAt = Date()
+        }
         do {
             try context.save()
+            self.navigationController?.popViewController(animated: true)
         } catch {
             print("Errrrror!!!!!")
         }
