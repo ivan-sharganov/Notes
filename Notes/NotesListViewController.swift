@@ -95,6 +95,20 @@ extension NotesListViewController {
     }
 }
 
+// MARK: - UITableViewDelegate
+
+extension NotesListViewController {
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        self.navigationController?.pushViewController(
+            NoteEditorViewController(
+                context: self.context,
+                note: self.fetchedResultsController.object(at: indexPath)
+            ),
+            animated: true
+        )
+    }
+}
+
 // MARK: - NSFetchedResultsControllerDelegate
 
 extension NotesListViewController: NSFetchedResultsControllerDelegate {
