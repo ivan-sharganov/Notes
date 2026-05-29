@@ -78,7 +78,8 @@ final class NoteEditorViewController: UIViewController {
         print("Did save")
         let title = self.titleTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !title.isEmpty else {
-            self.navigationController?.popViewController(animated: true)
+//            self.navigationController?.popViewController(animated: true)
+            self.showAlert(title: "Empty title", message: "Enter title for note")
             return
         }
         
@@ -100,8 +101,14 @@ final class NoteEditorViewController: UIViewController {
             try context.save()
             self.navigationController?.popViewController(animated: true)
         } catch {
-            print("Errrrror!!!!!")
+            self.showAlert(title: "Save failed", message: error.localizedDescription)
         }
+    }
+    
+    private func showAlert(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        self.present(alert, animated: true)
     }
     
 }
