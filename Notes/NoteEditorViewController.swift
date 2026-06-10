@@ -10,8 +10,20 @@ final class NoteEditorViewController: UIViewController {
         let tf = UITextField()
         tf.placeholder = "Title"
         tf.text = "Title"
+        // обводка
+        tf.layer.borderColor = UIColor.systemGray4.cgColor
+        tf.layer.borderWidth = 2
         tf.translatesAutoresizingMaskIntoConstraints = false
-        tf.backgroundColor = .green
+        // радиус в viewDidLayoutSubviews
+        
+        // отступ слева
+        let leftPadding = UIView(frame: CGRect(x: 0, y: 0, width: 14, height: 1))
+        tf.leftView = leftPadding
+        tf.leftViewMode = .always
+        
+        let rightPadding = UIView(frame: CGRect(x: 0, y: 0, width: 14, height: 1))
+        tf.rightView = rightPadding
+        tf.rightViewMode = .always
         
         return tf
     }()
@@ -20,7 +32,10 @@ final class NoteEditorViewController: UIViewController {
         let tv = UITextView()
         tv.text = "Title"
         tv.translatesAutoresizingMaskIntoConstraints = false
-        tv.backgroundColor = .red
+        tv.textContainerInset = UIEdgeInsets(top: 7, left: 7, bottom: 0, right: 7)
+        tv.layer.borderWidth = 2
+        tv.layer.borderColor = UIColor.systemGray4.cgColor
+        tv.layer.cornerRadius = 15
 
         return tv
     }()
@@ -40,6 +55,9 @@ final class NoteEditorViewController: UIViewController {
         self.setupUI()
         self.updateData()
     }
+    override func viewDidLayoutSubviews() {
+        self.titleTextField.layer.cornerRadius = self.titleTextField.frame.height / 2
+    }
     
     private func updateData() {
         if let note {
@@ -57,12 +75,13 @@ final class NoteEditorViewController: UIViewController {
         }
         let constraints = [
             self.titleTextField.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor),
-            self.titleTextField.leadingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.leadingAnchor),
-            self.titleTextField.trailingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.trailingAnchor),
-            self.titleTextField.bottomAnchor.constraint(equalTo: self.bodyTextView.topAnchor),
+            self.titleTextField.leadingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.leadingAnchor, constant: Constants.leftPadding),
+            self.titleTextField.trailingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.trailingAnchor, constant: -Constants.leftPadding),
+            self.titleTextField.bottomAnchor.constraint(equalTo: self.bodyTextView.topAnchor, constant: -15),
+            self.titleTextField.heightAnchor.constraint(equalToConstant: 40),
             
-            self.bodyTextView.leadingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.leadingAnchor),
-            self.bodyTextView.trailingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.trailingAnchor),
+            self.bodyTextView.leadingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.leadingAnchor, constant: Constants.leftPadding),
+            self.bodyTextView.trailingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.trailingAnchor, constant: -Constants.leftPadding),
             self.bodyTextView.bottomAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.bottomAnchor),
         ]
         NSLayoutConstraint.activate(constraints)
@@ -78,7 +97,6 @@ final class NoteEditorViewController: UIViewController {
         print("Did save")
         let title = self.titleTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !title.isEmpty else {
-//            self.navigationController?.popViewController(animated: true)
             self.showAlert(title: "Empty title", message: "Enter title for note")
             return
         }
@@ -109,6 +127,10 @@ final class NoteEditorViewController: UIViewController {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         self.present(alert, animated: true)
+    }
+    
+    private enum Constants {
+        static let leftPadding = 5.0
     }
     
 }
