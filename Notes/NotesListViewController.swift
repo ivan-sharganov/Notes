@@ -38,7 +38,14 @@ class NotesListViewController: UITableViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        try? self.fetchedResultsController.performFetch()
+        do {
+            try self.fetchedResultsController.performFetch()
+        } catch {
+            print("Fetch failed")
+            let alertVC = UIAlertController(title: "Fetch failed", message: "Check connection", preferredStyle: .alert)
+            alertVC.addAction(UIAlertAction(title: "OK", style: .default))
+            self.present(alertVC, animated: true)
+        }
         self.setupUI()
         
     }
