@@ -78,8 +78,10 @@ class NotesListViewController: UITableViewController {
             return nil
         }
         return NSPredicate(
-            format: "%K CONTAINS[cd] %@",
+            format: "%K CONTAINS[cd] %@ OR %K CONTAINS[cd] %@",
             #keyPath(Note.title),
+            text,
+            #keyPath(Note.body),
             text
         )
     }
@@ -136,23 +138,61 @@ extension NotesListViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         self.fetchedResultsController.sections?[section].numberOfObjects ?? 0
     }
-    override func tableView(
-        _ tableView: UITableView,
-        commit editingStyle: UITableViewCell.EditingStyle,
-        forRowAt indexPath: IndexPath
-    ) {
-        guard editingStyle == .delete else { return }
-        
+    // ‼️ это старое апи кнопки по свайпу, нам справа надо 2 кнопки: удаление и pin/unpin
+//    override func tableView(
+//        _ tableView: UITableView,
+//        commit editingStyle: UITableViewCell.EditingStyle,
+//        forRowAt indexPath: IndexPath
+//    ) {
+//        guard editingStyle == .delete else { return }
+//        
+//        let note = fetchedResultsController.object(at: indexPath)
+//        self.context.delete(note)
+//
+//        do {
+//            try self.context.save()
+//        } catch {
+//            print("Deleting error")
+//        }
+//    }
+    override func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
         let note = fetchedResultsController.object(at: indexPath)
-        self.context.delete(note)
-
+        
+        let deleteAction = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, completion in
+            self?.delete(note)
+            completion(true)
+        }
+        
+        let pinTitle = note.isPinned ? "Unpin" : "Pin"
+        let pinAction = UIContextualAction(style: .destructive, title: pinTitle) { [weak self] _, _, completion in
+            self?.togglePin(note)
+            completion(true)
+        }
+        pinAction.backgroundColor = .systemOrange
+        pinAction.image = UIImage(systemName: note.isPinned ? "pin.slash" : "pin")
+        
+        return UISwipeActionsConfiguration(actions: [deleteAction, pinAction])
+    }
+    
+    private func delete(_ note: Note) {
+        context.delete(note)
+        
         do {
-            try self.context.save()
+            try context.save()
         } catch {
-            print("Deleting error")
+            print("Delete error:", error.localizedDescription)
         }
     }
-
+    
+    private func togglePin(_ note: Note) {
+        note.isPinned.toggle()
+        
+        do {
+            try context.save()
+        } catch {
+            print("Pin error:", error.localizedDescription)
+        }
+    }
 }
 
 // MARK: - UITableViewDelegate
