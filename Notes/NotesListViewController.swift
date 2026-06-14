@@ -9,6 +9,9 @@ class NotesListViewController: UITableViewController {
     }
     private let context: NSManagedObjectContext
     
+    private let searchController = UISearchController(searchResultsController: nil)
+    private var searchText = ""
+    
     private lazy var fetchedResultsController: NSFetchedResultsController<Note> = {
         let request: NSFetchRequest<Note> = Note.fetchRequest()
         request.sortDescriptors = [
@@ -60,6 +63,36 @@ class NotesListViewController: UITableViewController {
             target: self,
             action: #selector(didTapAdd)
         )
+        self.navigationItem.searchController = self.searchController
+        self.navigationItem.hidesSearchBarWhenScrolling = false
+        
+        self.searchController.searchResultsUpdater = self
+        self.searchController.obscuresBackgroundDuringPresentation = false
+        self.searchController.searchBar.placeholder = "Search notes"
+    }
+    
+    private func makePredicate() -> NSPredicate? {
+        let text = self.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !text.isEmpty else {
+            return nil
+        }
+        return NSPredicate(
+            format: "%K CONTAINS[cd] %@",
+            #keyPath(Note.title),
+            text
+        )
+    }
+    
+    private func refetchNotes() {
+        self.fetchedResultsController.fetchRequest.predicate = makePredicate()
+        
+        do {
+            try fetchedResultsController.performFetch()
+            self.tableView.reloadData()
+        } catch {
+            print("Fetch error:", error.localizedDescription)
+        }
     }
     
     @objc private func didTapAdd() {
@@ -69,6 +102,16 @@ class NotesListViewController: UITableViewController {
         )
     }
 }
+
+// MARK: - UISearchResultsUpdating
+
+extension NotesListViewController: UISearchResultsUpdating {
+    func updateSearchResults(for searchController: UISearchController) {
+        self.searchText = searchController.searchBar.text ?? ""
+        self.refetchNotes()
+    }
+}
+
 
 // MARK: - UITableViewDataSource
 
