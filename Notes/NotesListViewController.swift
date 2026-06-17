@@ -164,7 +164,7 @@ extension NotesListViewController {
         }
         
         let pinTitle = note.isPinned ? "Unpin" : "Pin"
-        let pinAction = UIContextualAction(style: .destructive, title: pinTitle) { [weak self] _, _, completion in
+        let pinAction = UIContextualAction(style: .normal, title: pinTitle) { [weak self] _, _, completion in
             self?.togglePin(note)
             completion(true)
         }
@@ -235,11 +235,11 @@ extension NotesListViewController: NSFetchedResultsControllerDelegate {
                 self.tableView.deleteRows(at: [indexPath], with: .automatic)
             }
         case .move:
-            if let newIndexPath {
-                self.tableView.insertRows(at: [newIndexPath], with: .automatic)
-            }
             if let indexPath {
                 self.tableView.deleteRows(at: [indexPath], with: .automatic)
+            }
+            if let newIndexPath {
+                self.tableView.insertRows(at: [newIndexPath], with: .automatic)
             }
         case .update:
             if let indexPath {
