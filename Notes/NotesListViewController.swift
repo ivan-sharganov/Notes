@@ -42,6 +42,9 @@ class NotesListViewController: UITableViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        self.setupUI()
+        self.refreshDynamicSections()
+        
         do {
             try self.fetchedResultsController.performFetch()
         } catch {
@@ -50,7 +53,6 @@ class NotesListViewController: UITableViewController {
             alertVC.addAction(UIAlertAction(title: "OK", style: .default))
             self.present(alertVC, animated: true)
         }
-        self.setupUI()
         
     }
     private func setupUI() {
@@ -103,6 +105,29 @@ class NotesListViewController: UITableViewController {
             NoteEditorViewController(context: self.context, note: nil),
             animated: true
         )
+    }
+    /// Обновляет, если нужно, имена секций. Чтобы при
+    /// перезапуске сразу видели актуальные данные
+    private func refreshDynamicSections() {
+        let request: NSFetchRequest<Note> = Note.fetchRequest()
+
+        do {
+            let notes = try context.fetch(request)
+
+            for note in notes {
+                let newSectionIdentifier = Note.makeSectionIdentifier(for: note)
+
+                if note.sectionIdentifier != newSectionIdentifier {
+                    note.sectionIdentifier = newSectionIdentifier
+                }
+            }
+
+            if context.hasChanges {
+                try context.save()
+            }
+        } catch {
+            print("Refresh sections error:", error.localizedDescription)
+        }
     }
 }
 
@@ -201,7 +226,7 @@ extension NotesListViewController {
     
     private func togglePin(_ note: Note) {
         note.isPinned.toggle()
-        note.sectionIdentifier = makeSectionIdentifier(for: note)
+        note.sectionIdentifier = Note.makeSectionIdentifier(for: note)
         do {
             try context.save()
         } catch {
@@ -279,35 +304,4 @@ extension NotesListViewController: NSFetchedResultsControllerDelegate {
             break
         }
     }
-}
-
-
-func makeSectionIdentifier(for note: Note) -> String {
-    if note.isPinned {
-        return "0|Pinned"
-    }
-    let calendar = Calendar.current
-    let date = note.updatedAt
-    
-    if calendar.isDateInToday(date) {
-        return "1|Сегодня"
-    }
-    if calendar.isDateInYesterday(date) {
-        return "2|Вчера"
-    }
-    if let dayBeforeYesterday = calendar.date(byAdding: .day, value: -2, to: Date()),
-       calendar.isDate(date, inSameDayAs: dayBeforeYesterday) {
-        return "3|Позавчера"
-    }
-    if let weekAgo = calendar.date(byAdding: .day, value: -7, to: Date()),
-       date >= weekAgo {
-        return "4|На этой неделе"
-    }
-    if calendar.component(.year, from: date) == calendar.component(.year, from: Date()) {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "LLLL"
-        return "5|\(formatter.string(from: date).capitalized)" // capita;ized??
-    }
-    let year = calendar.component(.year, from: date)
-    return "6|\(year)"
 }

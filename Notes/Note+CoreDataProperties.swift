@@ -11,7 +11,7 @@ extension Note {
     }
 
     @NSManaged public var body: String?
-    @NSManaged public var sectionIdentifier: String?
+    @NSManaged public var sectionIdentifier: String
     @NSManaged public var createdAt: Date
     @NSManaged public var id: UUID
     @NSManaged public var isPinned: Bool
