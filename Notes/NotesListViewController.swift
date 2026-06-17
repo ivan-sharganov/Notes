@@ -15,6 +15,7 @@ class NotesListViewController: UITableViewController {
     private lazy var fetchedResultsController: NSFetchedResultsController<Note> = {
         let request: NSFetchRequest<Note> = Note.fetchRequest()
         request.sortDescriptors = [
+            NSSortDescriptor(key: #keyPath(Note.sectionIdentifier), ascending: true),
             NSSortDescriptor(key: #keyPath(Note.isPinned), ascending: false),
             NSSortDescriptor(key: #keyPath(Note.updatedAt), ascending: false)
         ]
@@ -22,7 +23,7 @@ class NotesListViewController: UITableViewController {
         let frc = NSFetchedResultsController(
             fetchRequest: request,
             managedObjectContext: self.context,
-            sectionNameKeyPath: nil,
+            sectionNameKeyPath: #keyPath(Note.sectionIdentifier),
             cacheName: nil
         )
         frc.delegate = self
@@ -138,6 +139,20 @@ extension NotesListViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         self.fetchedResultsController.sections?[section].numberOfObjects ?? 0
     }
+    
+    override func numberOfSections(in tableView: UITableView) -> Int {
+        self.fetchedResultsController.sections?.count ?? 0
+    }
+    
+    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        guard let name = fetchedResultsController.sections?[section].name else {
+            return nil
+        }
+        return self.displayTitle(for: name)
+    }
+    private func displayTitle(for sectionName: String) -> String {
+        sectionName.components(separatedBy: "|").last ?? sectionName
+    }
     // ‼️ это старое апи кнопки по свайпу, нам справа надо 2 кнопки: удаление и pin/unpin
 //    override func tableView(
 //        _ tableView: UITableView,
@@ -186,7 +201,7 @@ extension NotesListViewController {
     
     private func togglePin(_ note: Note) {
         note.isPinned.toggle()
-        
+        note.sectionIdentifier = makeSectionIdentifier(for: note)
         do {
             try context.save()
         } catch {
@@ -249,4 +264,50 @@ extension NotesListViewController: NSFetchedResultsControllerDelegate {
             self.tableView.reloadData()
         }
     }
+    func controller(
+        _ controller: NSFetchedResultsController<any NSFetchRequestResult>,
+        didChange sectionInfo: NSFetchedResultsSectionInfo,
+        atSectionIndex sectionIndex: Int,
+        for type: NSFetchedResultsChangeType
+    ) {
+        switch type {
+        case .insert:
+            tableView.insertSections(IndexSet(integer: sectionIndex), with: .automatic)
+        case .delete:
+            tableView.deleteSections(IndexSet(integer: sectionIndex), with: .automatic)
+        default:
+            break
+        }
+    }
+}
+
+
+func makeSectionIdentifier(for note: Note) -> String {
+    if note.isPinned {
+        return "0|Pinned"
+    }
+    let calendar = Calendar.current
+    let date = note.updatedAt
+    
+    if calendar.isDateInToday(date) {
+        return "1|Сегодня"
+    }
+    if calendar.isDateInYesterday(date) {
+        return "2|Вчера"
+    }
+    if let dayBeforeYesterday = calendar.date(byAdding: .day, value: -2, to: Date()),
+       calendar.isDate(date, inSameDayAs: dayBeforeYesterday) {
+        return "3|Позавчера"
+    }
+    if let weekAgo = calendar.date(byAdding: .day, value: -7, to: Date()),
+       date >= weekAgo {
+        return "4|На этой неделе"
+    }
+    if calendar.component(.year, from: date) == calendar.component(.year, from: Date()) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "LLLL"
+        return "5|\(formatter.string(from: date).capitalized)" // capita;ized??
+    }
+    let year = calendar.component(.year, from: date)
+    return "6|\(year)"
 }

@@ -106,6 +106,8 @@ final class NoteEditorViewController: UIViewController {
             exNote.title = title
             exNote.body = self.bodyTextView.text ?? ""
             exNote.updatedAt = Date()
+            exNote.sectionIdentifier = makeSectionIdentifier(for: exNote)
+
         } else {
             let note = Note(context: self.context)
             note.id = UUID()
@@ -114,6 +116,7 @@ final class NoteEditorViewController: UIViewController {
             note.title = title
             note.body = self.bodyTextView.text ?? ""
             note.updatedAt = Date()
+            note.sectionIdentifier = makeSectionIdentifier(for: note)
         }
         do {
             try context.save()
