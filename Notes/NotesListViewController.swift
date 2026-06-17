@@ -109,6 +109,7 @@ class NotesListViewController: UITableViewController {
     /// Обновляет, если нужно, имена секций. Чтобы при
     /// перезапуске сразу видели актуальные данные
     private func refreshDynamicSections() {
+        // TODO: сделать оптимизацию чтобы не fetch-ить все заметки 
         let request: NSFetchRequest<Note> = Note.fetchRequest()
 
         do {
@@ -173,10 +174,7 @@ extension NotesListViewController {
         guard let name = fetchedResultsController.sections?[section].name else {
             return nil
         }
-        return self.displayTitle(for: name)
-    }
-    private func displayTitle(for sectionName: String) -> String {
-        sectionName.components(separatedBy: "|").last ?? sectionName
+        return Note.displaySectionTitle(from: name)
     }
     // ‼️ это старое апи кнопки по свайпу, нам справа надо 2 кнопки: удаление и pin/unpin
 //    override func tableView(
