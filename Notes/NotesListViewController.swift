@@ -109,7 +109,7 @@ class NotesListViewController: UITableViewController {
     /// Обновляет, если нужно, имена секций. Чтобы при
     /// перезапуске сразу видели актуальные данные
     private func refreshDynamicSections() {
-        // TODO: сделать оптимизацию чтобы не fetch-ить все заметки 
+        // TODO: сделать оптимизацию чтобы не fetch-ить все заметки
         let request: NSFetchRequest<Note> = Note.fetchRequest()
 
         do {
