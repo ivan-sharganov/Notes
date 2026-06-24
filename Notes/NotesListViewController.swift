@@ -73,12 +73,19 @@ class NotesListViewController: UITableViewController {
             action: #selector(didTapAdd)
         )
         
-        self.navigationItem.leftBarButtonItem = UIBarButtonItem(
-            title: "Generate 500",
-            style: .plain,
-            target: self,
-            action: #selector(didTapGenerate)
-        )
+        self.navigationItem.leftBarButtonItems = [
+            UIBarButtonItem(
+                title: "Gen500",
+                style: .plain,
+                target: self,
+                action: #selector(didTapGenerate)
+            ),
+            UIBarButtonItem(
+                barButtonSystemItem: .trash,
+                target: self,
+                action: #selector(didTapDeleteAll)
+            )
+        ]
         self.navigationItem.searchController = self.searchController
         self.navigationItem.hidesSearchBarWhenScrolling = false
         
@@ -120,6 +127,52 @@ class NotesListViewController: UITableViewController {
         )
     }
     
+    @objc private func didTapDeleteAll() {
+        self.deleteAllNotes()
+    }
+    
+    private func deleteAllNotes() {
+        let backgroundContext = self.persistentContainer.newBackgroundContext()
+        
+        backgroundContext.perform { [weak self] in
+            guard let self else { return }
+            let fetchRequest: NSFetchRequest<NSFetchRequestResult> = Note.fetchRequest()
+            let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
+            
+            // Без resultTypeObjectIDs Core Data просто удалит записи из store,
+            // но viewContext и FRC могут не понять, какие именно объекты исчезли.
+            deleteRequest.resultType = .resultTypeObjectIDs
+            
+            do {
+                let result = try backgroundContext.execute(deleteRequest) as? NSBatchDeleteResult
+                let objectIDs = result?.result as? [NSManagedObjectID] ?? []
+                
+                let changes: [AnyHashable: Any] = [
+                    NSDeletedObjectsKey: objectIDs
+                ]
+                
+                // для viewContext: “эти объекты были удалены вне тебя, обнови своё состояние”.
+                NSManagedObjectContext.mergeChanges(
+                    fromRemoteContextSave: changes,
+                    into: [self.context]
+                )
+            } catch {
+                print("Batch delete error:", error.localizedDescription)
+            }
+        }
+        // обычное удаление:
+        //
+        // context.delete(note)
+        // try context.save()
+        
+        // удаление батчами:
+        //
+        // context.execute(NSBatchDeleteRequest(...))
+        
+        // Обычное удаление идёт через context и нормально трекается.
+        // Batch delete идёт напрямую в store, поэтому требует ручного merge.
+    }
+    
     @objc private func didTapGenerate() {
         self.generateNotesInBackground(count: 500)
     }
@@ -129,8 +182,9 @@ class NotesListViewController: UITableViewController {
         
         backgroundContext.perform { [weak self] in
             guard let self else { return }
-            let date = self.randomDate()
+            
             for i in 1...count {
+                let date = self.randomDate()
                 let note = Note(context: backgroundContext)
                 note.title = "Generated note \(i)"
                 note.body = "Created in background context"
