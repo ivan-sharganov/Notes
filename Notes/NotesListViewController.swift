@@ -8,6 +8,7 @@ class NotesListViewController: UITableViewController {
         static let title = "Notes"
     }
     private let context: NSManagedObjectContext
+    private let persistentContainer: NSPersistentContainer
     
     private let searchController = UISearchController(searchResultsController: nil)
     private var searchText = ""
@@ -31,8 +32,9 @@ class NotesListViewController: UITableViewController {
         return frc
     }()
     
-    init(context: NSManagedObjectContext) {
+    init(context: NSManagedObjectContext, persistentContainer: NSPersistentContainer) {
         self.context = context
+        self.persistentContainer = persistentContainer
         super.init(nibName: nil, bundle: nil)
     }
     
@@ -49,7 +51,11 @@ class NotesListViewController: UITableViewController {
             try self.fetchedResultsController.performFetch()
         } catch {
             print("Fetch failed")
-            let alertVC = UIAlertController(title: "Fetch failed", message: "Check connection", preferredStyle: .alert)
+            let alertVC = UIAlertController(
+                title: "Fetch failed",
+                message: error.localizedDescription,
+                preferredStyle: .alert
+            )
             alertVC.addAction(UIAlertAction(title: "OK", style: .default))
             self.present(alertVC, animated: true)
         }
@@ -65,6 +71,13 @@ class NotesListViewController: UITableViewController {
             barButtonSystemItem: .add,
             target: self,
             action: #selector(didTapAdd)
+        )
+        
+        self.navigationItem.leftBarButtonItem = UIBarButtonItem(
+            title: "Generate 500",
+            style: .plain,
+            target: self,
+            action: #selector(didTapGenerate)
         )
         self.navigationItem.searchController = self.searchController
         self.navigationItem.hidesSearchBarWhenScrolling = false
@@ -106,6 +119,46 @@ class NotesListViewController: UITableViewController {
             animated: true
         )
     }
+    
+    @objc private func didTapGenerate() {
+        self.generateNotesInBackground(count: 500)
+    }
+    
+    private func generateNotesInBackground(count: Int) {
+        let backgroundContext = self.persistentContainer.newBackgroundContext()
+        
+        backgroundContext.perform { [weak self] in
+            guard let self else { return }
+            let date = self.randomDate()
+            for i in 1...count {
+                let note = Note(context: backgroundContext)
+                note.title = "Generated note \(i)"
+                note.body = "Created in background context"
+                
+                note.id = UUID()
+                note.updatedAt = date
+                note.createdAt = date
+                note.isPinned = Bool.random()
+                note.sectionIdentifier = Note.makeSectionIdentifier(for: note)
+            }
+            
+            do {
+                try backgroundContext.save()
+            } catch {
+                print("Background insert error: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func randomDate() -> Date {
+        let daysAgo = Int.random(in: 0...500)
+        return Calendar.current.date(
+            byAdding: .day,
+            value: -daysAgo,
+            to: Date()
+        ) ?? Date()
+    }
+    
     /// Обновляет, если нужно, имена секций. Чтобы при
     /// перезапуске сразу видели актуальные данные
     private func refreshDynamicSections() {
