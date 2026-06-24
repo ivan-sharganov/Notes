@@ -67,12 +67,20 @@ class NotesListViewController: UITableViewController {
         
         self.title = Constants.title
         
-        self.navigationItem.rightBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .add,
-            target: self,
-            action: #selector(didTapAdd)
-        )
-        
+        self.navigationItem.rightBarButtonItems = [
+            UIBarButtonItem(
+                barButtonSystemItem: .add,
+                target: self,
+                action: #selector(didTapAdd)
+            ),
+            UIBarButtonItem(
+                title: "Upn all",
+                style: .plain,
+                target: self,
+                action: #selector(didTapUnpinAll)
+            )
+            
+        ]
         self.navigationItem.leftBarButtonItems = [
             UIBarButtonItem(
                 title: "Gen500",
@@ -129,6 +137,51 @@ class NotesListViewController: UITableViewController {
     
     @objc private func didTapDeleteAll() {
         self.deleteAllNotes()
+    }
+    
+    @objc private func didTapUnpinAll() {
+        self.unpinAllNotes()
+    }
+    
+    private func unpinAllNotes() {
+        let backgroundContext = self.persistentContainer.newBackgroundContext()
+        
+        backgroundContext.perform { [weak self] in
+            guard let self else { return }
+            
+            let request = NSBatchUpdateRequest(entityName: "Note")
+            request.predicate = NSPredicate(
+                format: "%K == %@",
+                #keyPath(Note.isPinned),
+                NSNumber(value: true)
+            )
+            request.propertiesToUpdate = [
+                #keyPath(Note.isPinned): NSNumber(value: false)
+            ]
+            
+            request.resultType = .updatedObjectIDsResultType
+            
+            do {
+                let result = try backgroundContext.execute(request) as? NSBatchUpdateResult
+                let objectIDs = result?.result as? [NSManagedObjectID] ?? []
+                
+                let changes: [AnyHashable: Any] = [
+                    NSUpdatedObjectsKey: objectIDs
+                ]
+                DispatchQueue.main.async {
+                    NSManagedObjectContext.mergeChanges(
+                        fromRemoteContextSave: changes,
+                        into: [self.context]
+                    )
+                    
+                    self.refreshDynamicSections()
+                    self.refetchNotes()
+                }
+            } catch {
+                print("Batch update error: \(error.localizedDescription)")
+            }
+            
+        }
     }
     
     private func deleteAllNotes() {
@@ -205,10 +258,10 @@ class NotesListViewController: UITableViewController {
     }
     
     private func randomDate() -> Date {
-        let daysAgo = Int.random(in: 0...500)
+        let yearsAgo = Int.random(in: 0...12)
         return Calendar.current.date(
-            byAdding: .day,
-            value: -daysAgo,
+            byAdding: .year,
+            value: -yearsAgo,
             to: Date()
         ) ?? Date()
     }

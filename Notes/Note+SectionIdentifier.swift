@@ -44,7 +44,8 @@ extension Note {
         }
 
         let year = calendar.component(.year, from: date)
-        return "6|\(year)"
+        let sortKey = 9999 - year // инвертируем год для правильной сортировки
+        return "6|\(sortKey)|\(year)"
     }
 
     static func displaySectionTitle(from sectionIdentifier: String) -> String {
