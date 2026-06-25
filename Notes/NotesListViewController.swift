@@ -7,34 +7,15 @@ class NotesListViewController: UITableViewController {
         static let reuseID = "cell"
         static let title = "Notes"
     }
-    private let context: NSManagedObjectContext
-    private let persistentContainer: NSPersistentContainer
+    private var context: NSManagedObjectContext { self.repository.viewContext }
+    private let repository: NoteRepository
+    private lazy var fetchedResultsController = self.repository.makeFetchedResultsController(delegate: self)
     
     private let searchController = UISearchController(searchResultsController: nil)
     private var searchText = ""
     
-    private lazy var fetchedResultsController: NSFetchedResultsController<Note> = {
-        let request: NSFetchRequest<Note> = Note.fetchRequest()
-        request.sortDescriptors = [
-            NSSortDescriptor(key: #keyPath(Note.sectionIdentifier), ascending: true),
-            NSSortDescriptor(key: #keyPath(Note.isPinned), ascending: false),
-            NSSortDescriptor(key: #keyPath(Note.updatedAt), ascending: false)
-        ]
-        
-        let frc = NSFetchedResultsController(
-            fetchRequest: request,
-            managedObjectContext: self.context,
-            sectionNameKeyPath: #keyPath(Note.sectionIdentifier),
-            cacheName: nil
-        )
-        frc.delegate = self
-        
-        return frc
-    }()
-    
-    init(context: NSManagedObjectContext, persistentContainer: NSPersistentContainer) {
-        self.context = context
-        self.persistentContainer = persistentContainer
+    init(repository: NoteRepository) {
+        self.repository = repository
         super.init(nibName: nil, bundle: nil)
     }
     
@@ -45,7 +26,7 @@ class NotesListViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         self.setupUI()
-        self.refreshDynamicSections()
+        self.repository.refreshDynamicSections()
         
         do {
             try self.fetchedResultsController.performFetch()
@@ -102,23 +83,8 @@ class NotesListViewController: UITableViewController {
         self.searchController.searchBar.placeholder = "Search notes"
     }
     
-    private func makePredicate() -> NSPredicate? {
-        let text = self.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        guard !text.isEmpty else {
-            return nil
-        }
-        return NSPredicate(
-            format: "%K CONTAINS[cd] %@ OR %K CONTAINS[cd] %@",
-            #keyPath(Note.title),
-            text,
-            #keyPath(Note.body),
-            text
-        )
-    }
-    
     private func refetchNotes() {
-        self.fetchedResultsController.fetchRequest.predicate = makePredicate()
+        self.fetchedResultsController.fetchRequest.predicate = self.repository.makeSearchPredicate(text: self.searchText)
         
         do {
             try fetchedResultsController.performFetch()
@@ -136,159 +102,19 @@ class NotesListViewController: UITableViewController {
     }
     
     @objc private func didTapDeleteAll() {
-        self.deleteAllNotes()
+        self.repository.deleteAllNotes()
     }
     
     @objc private func didTapUnpinAll() {
-        self.unpinAllNotes()
-    }
-    
-    private func unpinAllNotes() {
-        let backgroundContext = self.persistentContainer.newBackgroundContext()
-        
-        backgroundContext.perform { [weak self] in
+        self.repository.unpinAllNotes { [weak self] in
             guard let self else { return }
-            
-            let request = NSBatchUpdateRequest(entityName: "Note")
-            request.predicate = NSPredicate(
-                format: "%K == %@",
-                #keyPath(Note.isPinned),
-                NSNumber(value: true)
-            )
-            request.propertiesToUpdate = [
-                #keyPath(Note.isPinned): NSNumber(value: false)
-            ]
-            
-            request.resultType = .updatedObjectIDsResultType
-            
-            do {
-                let result = try backgroundContext.execute(request) as? NSBatchUpdateResult
-                let objectIDs = result?.result as? [NSManagedObjectID] ?? []
-                
-                let changes: [AnyHashable: Any] = [
-                    NSUpdatedObjectsKey: objectIDs
-                ]
-                DispatchQueue.main.async {
-                    NSManagedObjectContext.mergeChanges(
-                        fromRemoteContextSave: changes,
-                        into: [self.context]
-                    )
-                    
-                    self.refreshDynamicSections()
-                    self.refetchNotes()
-                }
-            } catch {
-                print("Batch update error: \(error.localizedDescription)")
-            }
-            
+            self.repository.refreshDynamicSections()
+            self.refetchNotes()
         }
-    }
-    
-    private func deleteAllNotes() {
-        let backgroundContext = self.persistentContainer.newBackgroundContext()
-        
-        backgroundContext.perform { [weak self] in
-            guard let self else { return }
-            let fetchRequest: NSFetchRequest<NSFetchRequestResult> = Note.fetchRequest()
-            let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
-            
-            // Без resultTypeObjectIDs Core Data просто удалит записи из store,
-            // но viewContext и FRC могут не понять, какие именно объекты исчезли.
-            deleteRequest.resultType = .resultTypeObjectIDs
-            
-            do {
-                let result = try backgroundContext.execute(deleteRequest) as? NSBatchDeleteResult
-                let objectIDs = result?.result as? [NSManagedObjectID] ?? []
-                
-                let changes: [AnyHashable: Any] = [
-                    NSDeletedObjectsKey: objectIDs
-                ]
-                
-                // для viewContext: “эти объекты были удалены вне тебя, обнови своё состояние”.
-                NSManagedObjectContext.mergeChanges(
-                    fromRemoteContextSave: changes,
-                    into: [self.context]
-                )
-            } catch {
-                print("Batch delete error:", error.localizedDescription)
-            }
-        }
-        // обычное удаление:
-        //
-        // context.delete(note)
-        // try context.save()
-        
-        // удаление батчами:
-        //
-        // context.execute(NSBatchDeleteRequest(...))
-        
-        // Обычное удаление идёт через context и нормально трекается.
-        // Batch delete идёт напрямую в store, поэтому требует ручного merge.
     }
     
     @objc private func didTapGenerate() {
-        self.generateNotesInBackground(count: 500)
-    }
-    
-    private func generateNotesInBackground(count: Int) {
-        let backgroundContext = self.persistentContainer.newBackgroundContext()
-        
-        backgroundContext.perform { [weak self] in
-            guard let self else { return }
-            
-            for i in 1...count {
-                let date = self.randomDate()
-                let note = Note(context: backgroundContext)
-                note.title = "Generated note \(i)"
-                note.body = "Created in background context"
-                
-                note.id = UUID()
-                note.updatedAt = date
-                note.createdAt = date
-                note.isPinned = Bool.random()
-                note.sectionIdentifier = Note.makeSectionIdentifier(for: note)
-            }
-            
-            do {
-                try backgroundContext.save()
-            } catch {
-                print("Background insert error: \(error.localizedDescription)")
-            }
-        }
-    }
-    
-    private func randomDate() -> Date {
-        let yearsAgo = Int.random(in: 0...12)
-        return Calendar.current.date(
-            byAdding: .year,
-            value: -yearsAgo,
-            to: Date()
-        ) ?? Date()
-    }
-    
-    /// Обновляет, если нужно, имена секций. Чтобы при
-    /// перезапуске сразу видели актуальные данные
-    private func refreshDynamicSections() {
-        // TODO: сделать оптимизацию чтобы не fetch-ить все заметки
-        let request: NSFetchRequest<Note> = Note.fetchRequest()
-
-        do {
-            let notes = try context.fetch(request)
-
-            for note in notes {
-                let newSectionIdentifier = Note.makeSectionIdentifier(for: note)
-
-                if note.sectionIdentifier != newSectionIdentifier {
-                    note.sectionIdentifier = newSectionIdentifier
-                }
-            }
-
-            if context.hasChanges {
-                try context.save()
-            }
-        } catch {
-            print("Refresh sections error:", error.localizedDescription)
-        }
+        self.repository.generateNotesInBackground(count: 500)
     }
 }
 
@@ -357,39 +183,19 @@ extension NotesListViewController {
         let note = fetchedResultsController.object(at: indexPath)
         
         let deleteAction = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, completion in
-            self?.delete(note)
+            self?.repository.delete(note)
             completion(true)
         }
         
         let pinTitle = note.isPinned ? "Unpin" : "Pin"
         let pinAction = UIContextualAction(style: .normal, title: pinTitle) { [weak self] _, _, completion in
-            self?.togglePin(note)
+            self?.repository.togglePin(note)
             completion(true)
         }
         pinAction.backgroundColor = .systemOrange
         pinAction.image = UIImage(systemName: note.isPinned ? "pin.slash" : "pin")
         
         return UISwipeActionsConfiguration(actions: [deleteAction, pinAction])
-    }
-    
-    private func delete(_ note: Note) {
-        context.delete(note)
-        
-        do {
-            try context.save()
-        } catch {
-            print("Delete error:", error.localizedDescription)
-        }
-    }
-    
-    private func togglePin(_ note: Note) {
-        note.isPinned.toggle()
-        note.sectionIdentifier = Note.makeSectionIdentifier(for: note)
-        do {
-            try context.save()
-        } catch {
-            print("Pin error:", error.localizedDescription)
-        }
     }
 }
 
