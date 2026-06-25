@@ -17,6 +17,7 @@ extension Note {
     @NSManaged public var isPinned: Bool
     @NSManaged public var title: String
     @NSManaged public var updatedAt: Date
+    @NSManaged public var category: String?
 
 }
 
