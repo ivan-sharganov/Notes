@@ -1,16 +1,37 @@
 import CoreData
-/// Класс-подмена настоящего persistentStore.
-/// Не делает записей на диск, потому что создает новое пустое временное хранилище в RAM.
-/// Нам доступны проверки базы, но не делаем в нее записи, только в RAM,
-/// что не отражается на настоящей базе
+
+/// Класс-подмена настоящего persistentStore приложения.
+/// По умолчанию создает новое пустое временное хранилище в RAM.
 final class TestCoreDataStack {
-    let persistentContainer: NSPersistentContainer
+    enum StoreType {
+        case inMemory
+        case temporarySQLite
+    }
     
-    init() {
+    let persistentContainer: NSPersistentContainer
+    private let storeURL: URL?
+    
+    init(storeType: StoreType = .inMemory) {
         self.persistentContainer = NSPersistentContainer(name: "Notes")
-        let description = NSPersistentStoreDescription()
-        // NSInMemoryStoreType означает: Core Data создаёт новое пустое временное хранилище только в RAM.
-        description.type = NSInMemoryStoreType
+        
+        let description: NSPersistentStoreDescription
+        
+        switch storeType {
+        case .inMemory:
+            // NSInMemoryStoreType быстрый, но не поддерживает batch update/delete.
+            self.storeURL = nil
+            description = NSPersistentStoreDescription()
+            description.type = NSInMemoryStoreType
+            
+        case .temporarySQLite:
+            // Batch operations работают на SQLite store, поэтому для таких тестов нужен временный файл.
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("NotesTests-\(UUID().uuidString).sqlite")
+            
+            self.storeURL = url
+            description = NSPersistentStoreDescription(url: url)
+            description.type = NSSQLiteStoreType
+        }
         
         self.persistentContainer.persistentStoreDescriptions = [description]
         
@@ -21,5 +42,18 @@ final class TestCoreDataStack {
         }
         
         self.persistentContainer.viewContext.automaticallyMergesChangesFromParent = true
+    }
+    
+    deinit {
+        guard let storeURL else { return }
+        
+        try? persistentContainer.persistentStoreCoordinator.destroyPersistentStore(
+            at: storeURL,
+            ofType: NSSQLiteStoreType
+        )
+        
+        try? FileManager.default.removeItem(at: storeURL)
+        try? FileManager.default.removeItem(atPath: storeURL.path + "-shm")
+        try? FileManager.default.removeItem(atPath: storeURL.path + "-wal")
     }
 }
