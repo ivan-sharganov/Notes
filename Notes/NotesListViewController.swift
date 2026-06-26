@@ -82,7 +82,8 @@ class NotesListViewController: UITableViewController {
         self.searchController.obscuresBackgroundDuringPresentation = false
         self.searchController.searchBar.placeholder = "Search notes"
     }
-    
+    /// Поиск и демонстрация тех заметок, которые
+    /// удовлетворяют условию поиска
     private func refetchNotes() {
         self.fetchedResultsController.fetchRequest.predicate = self.repository.makeSearchPredicate(text: self.searchText)
         
